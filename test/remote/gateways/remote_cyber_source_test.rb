@@ -1,5 +1,9 @@
 require 'test_helper'
 
+# Note:
+# to successfully run the echeck test cases, your cybersource test account must be set up
+# with one of cybersource's check processors; these cases pass against Paymenttech
+
 class RemoteCyberSourceTest < Test::Unit::TestCase
   def setup
     Base.gateway_mode = :test
@@ -48,8 +52,26 @@ class RemoteCyberSourceTest < Test::Unit::TestCase
         :amount => 100
       }
     }
+
+    @check = ActiveMerchant::Billing::Check.new(
+      :name => 'Mr CustomerTwo',
+      :routing_number => '121042882', # Valid ABA # - Bank of America, TX
+      :account_number => '4100',
+      :account_holder_type => 'personal',
+      :account_type => 'checking'
+    )
+
+    check_fields = {
+      :billing_address => address.merge(:first_name => 'Jim', :last_name => 'CustomerTwo', :phone_number => "123-456-7890"),
+      :drivers_license_number => "C2222222",
+      :drivers_license_state  => "CA"
+    }
+
+    @check_options = @options.merge(check_fields)
+
+    @check_subscription_options = @subscription_options.merge(check_fields)
   end
-  
+
   def test_successful_authorization
     assert response = @gateway.authorize(@amount, @credit_card, @options)
     assert_equal 'Successful transaction', response.message
@@ -97,11 +119,17 @@ class RemoteCyberSourceTest < Test::Unit::TestCase
     assert response.test?
   end
 
-  def test_successful_purchase
+  def test_successful_purchase_with_cc
     assert response = @gateway.purchase(@amount, @credit_card, @options)
     assert_equal 'Successful transaction', response.message
     assert_success response
     assert response.test?
+  end
+
+  def test_successful_purchase_with_echeck
+    assert response = @gateway.purchase(@amount, @check, @check_options)
+    assert_equal 'Successful transaction', response.message
+    assert_success response
   end
 
   def test_unsuccessful_purchase
@@ -156,15 +184,22 @@ class RemoteCyberSourceTest < Test::Unit::TestCase
     assert response.test?
   end
 
-  def test_successful_create_subscription_with_setup_fee
+  def test_successful_create_subscription_with_cc
+    assert response = @gateway.create_subscription(@credit_card, @subscription_options)
+    assert_equal 'Successful transaction', response.message
+    assert_success response
+    assert response.test?
+  end
+
+  def test_successful_create_subscription_with_cc_and_setup_fee
     assert response = @gateway.create_subscription(@credit_card, @subscription_options.merge(:setup_fee => 100))
     assert_equal 'Successful transaction', response.message
     assert_success response
     assert response.test?
   end
 
-  def test_successful_create_subscription_without_setup_fee
-    assert response = @gateway.create_subscription(@credit_card, @subscription_options)
+  def test_successful_create_subscription_with_echeck
+    assert response = @gateway.create_subscription(@check, @check_subscription_options)
     assert_equal 'Successful transaction', response.message
     assert_success response
     assert response.test?
@@ -182,13 +217,25 @@ class RemoteCyberSourceTest < Test::Unit::TestCase
     assert response.test?
   end
 
-  def test_successful_subscription_purchase
+  def test_successful_purchase_with_cc_subscription
     assert response = @gateway.create_subscription(@credit_card, @subscription_options)
     assert_equal 'Successful transaction', response.message
     assert_success response
     assert response.test?
 
-    assert response = @gateway.subscription_purchase(@amount, response.authorization, @options)
+    assert response = @gateway.purchase(@amount, response.authorization, @options.merge(:type => :credit_card))
+    assert_equal 'Successful transaction', response.message
+    assert_success response
+    assert response.test?
+  end
+
+  def test_successful_purchase_with_echeck_subscription
+    assert response = @gateway.create_subscription(@check, @check_subscription_options)
+    assert_equal 'Successful transaction', response.message
+    assert_success response
+    assert response.test?
+
+    assert response = @gateway.purchase(@amount, response.authorization, @options.merge(:type => :check))
     assert_equal 'Successful transaction', response.message
     assert_success response
     assert response.test?

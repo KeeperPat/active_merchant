@@ -12,6 +12,11 @@ class CyberSourceTest < Test::Unit::TestCase
     @amount = 100
     @credit_card = credit_card('4111111111111111', :type => 'visa')
     @declined_card = credit_card('801111111111111', :type => 'visa')
+    @check = Check.new(:name => 'Fred Bloggs',
+                       :routing_number => '111000025',
+                       :account_number => '123456789012',
+                       :account_holder_type => 'personal',
+                       :account_type => 'checking')
 
     @options = {
       :billing_address => address.merge(:first_name => 'Jim', :last_name => 'Smith'),
@@ -95,9 +100,22 @@ class CyberSourceTest < Test::Unit::TestCase
     assert response_capture.test?
   end
 
-  def test_successful_purchase_request
-    @gateway.stubs(:ssl_post).returns(successful_capture_response)
+  def test_successful_purchase_request_with_cc
+    @gateway.stubs(:ssl_post).returns(successful_purchase_response)
     assert response = @gateway.purchase(@amount, @credit_card, @options)
+    assert response.success?
+    assert response.test?
+  end
+
+  def test_successful_purchase_request_with_check
+    check = Check.new(:name => 'Fred Bloggs',
+                      :routing_number => '111000025',
+                      :account_number => '123456789012',
+                      :account_holder_type => 'personal',
+                      :account_type => 'checking')
+
+    @gateway.stubs(:ssl_post).returns(successful_purchase_response)
+    assert response = @gateway.purchase(@amount, check, @options)
     assert response.success?
     assert response.test?
   end
@@ -139,12 +157,19 @@ class CyberSourceTest < Test::Unit::TestCase
     assert response.test?
     assert response_capture = @gateway.credit(@amount, response.authorization)
     assert response_capture.success?
-    assert response_capture.test?  
+    assert response_capture.test?
   end
 
-  def test_successful_create_subscription_request
+  def test_successful_create_subscription_request_with_cc
     @gateway.stubs(:ssl_post).returns(successful_create_subscription_response)
     assert response = @gateway.create_subscription(@credit_card, @subscription_options)
+    assert response.success?
+    assert response.test?
+  end
+
+  def test_successful_create_subscription_request_with_check
+    @gateway.stubs(:ssl_post).returns(successful_create_subscription_response)
+    assert response = @gateway.create_subscription(@check, @subscription_options)
     assert response.success?
     assert response.test?
   end
@@ -159,12 +184,22 @@ class CyberSourceTest < Test::Unit::TestCase
     assert response.test?
   end
 
-  def test_successful_subscription_purchase_request
+  def test_successful_purchase_request_with_cc_subscription
     @gateway.stubs(:ssl_post).returns(successful_create_subscription_response, successful_subscription_purchase_response)
     assert response = @gateway.create_subscription(@credit_card, @subscription_options)
     assert response.success?
     assert response.test?
-    assert response = @gateway.subscription_purchase(@amount, response.authorization, @options)
+    assert response = @gateway.purchase(@amount, response.authorization, @options.merge(:type => :credit_card))
+    assert response.success?
+    assert response.test?
+  end
+
+  def test_successful_purchase_request_with_check_subscription
+    @gateway.stubs(:ssl_post).returns(successful_create_subscription_response, successful_subscription_purchase_response)
+    assert response = @gateway.create_subscription(@check, @subscription_options)
+    assert response.success?
+    assert response.test?
+    assert response = @gateway.purchase(@amount, response.authorization, @options.merge(:type => :check))
     assert response.success?
     assert response.test?
   end

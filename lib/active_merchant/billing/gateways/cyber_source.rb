@@ -118,10 +118,15 @@ module ActiveMerchant #:nodoc:
 
       # Purchase is an auth followed by a capture
       # You must supply an order_id in the options hash  
-      def purchase(money, creditcard, options = {})
+      def purchase(money, payment_source, options = {})
         requires!(options, :order_id, :email)
         setup_address_hash(options)
-        commit(build_purchase_request(money, creditcard, options), options)
+        if payment_source.is_a?(String)
+          requires!(options, [:type, :credit_card, :check])
+          commit(build_subscription_purchase_request(money, payment_source, options), options)
+        else
+          commit(build_purchase_request(money, payment_source, options), options)
+        end
       end
       
       def void(identification, options = {})
@@ -131,23 +136,19 @@ module ActiveMerchant #:nodoc:
       def credit(money, identification, options = {})
         commit(build_credit_request(money, identification, options), options)
       end
-      
-      def create_subscription(creditcard, options = {})
+
+      def create_subscription(payment_source, options = {})
         requires!(options, :subscription, :billing_address, :order_id, :email)
         requires!(options[:subscription], [:frequency, "on-demand", "weekly", "bi-weekly", "semi-monthly", "quarterly", "quad-weekly", "semi-annually", "annually"])
         requires!(options[:billing_address], :first_name, :last_name)
         setup_address_hash(options)
-        commit(build_create_subscription_request(creditcard, options), options)
+        commit(build_create_subscription_request(payment_source, options), options)
       end
 
       def update_subscription(identification, options = {})
         requires!(options, :order_id)
         setup_address_hash(options)
         commit(build_update_subscription_request(identification, options), options)
-      end
-
-      def subscription_purchase(money, identification, options = {})
-        commit(build_subscription_purchase_request(money, identification, options), options)
       end
 
       # CyberSource requires that you provide line item information for tax calculations
@@ -211,7 +212,6 @@ module ActiveMerchant #:nodoc:
       def build_capture_request(money, authorization, options)
         order_id, request_id, request_token = authorization.split(";")
         options[:order_id] = order_id
-
         xml = Builder::XmlMarkup.new :indent => 2
         add_purchase_data(xml, money, true, options)
         add_capture_service(xml, request_id, request_token)
@@ -219,12 +219,12 @@ module ActiveMerchant #:nodoc:
         xml.target!
       end 
 
-      def build_purchase_request(money, creditcard, options)
+      def build_purchase_request(money, payment_source, options)
         xml = Builder::XmlMarkup.new :indent => 2
         add_address(xml, options[:billing_address], options)
         add_purchase_data(xml, money, true, options)
-        add_creditcard(xml, creditcard)
-        add_purchase_service(xml, options)
+        add_payment_source(xml, payment_source)
+        add_purchase_service(xml, payment_source, options)
         add_business_rules_data(xml)
         xml.target!
       end
@@ -249,12 +249,19 @@ module ActiveMerchant #:nodoc:
         xml.target!
       end
 
-      def build_create_subscription_request(creditcard, options)
+      def build_create_subscription_request(payment_source, options)
         xml = Builder::XmlMarkup.new :indent => 2
         add_address(xml, options[:billing_address], options)
         add_purchase_data(xml, options[:setup_fee], true, options)
-        add_creditcard(xml, creditcard)
-        add_subscription(xml, options)
+
+
+        case determine_funding_source(payment_source)
+          when :credit_card   then add_creditcard(xml, payment_source)
+          when :check         then add_check(xml, payment_source)
+          else raise ArgumentError, "Unsupported funding source provided"
+        end
+
+        add_subscription(xml, options, payment_source)
         add_subscription_create_service(xml, options)
         add_business_rules_data(xml)
         xml.target!
@@ -283,7 +290,12 @@ module ActiveMerchant #:nodoc:
         xml = Builder::XmlMarkup.new :indent => 2
         add_purchase_data(xml, money, true, options)
         add_subscription(xml, options)
-        add_purchase_service(xml, options)
+
+        case options[:type]
+          when :credit_card   then add_cc_purchase_service(xml, options)
+          when :check         then add_check_service(xml)
+        end
+
         add_business_rules_data(xml)
         xml.target!
       end
@@ -315,6 +327,14 @@ module ActiveMerchant #:nodoc:
         xml.tag! 'clientEnvironment' , 'Linux'
       end
 
+      def add_payment_source(xml, source, options={})
+        case determine_funding_source(source)
+          #when :subscription  then add_customer_vault_id(params, source)
+          when :credit_card   then add_creditcard(xml, source)
+          when :check         then add_check(xml, source)
+        end
+      end
+
       def add_purchase_data(xml, money, include_grand_total = false, options={})
         money ||= 0
         xml.tag! 'purchaseTotals' do
@@ -325,16 +345,21 @@ module ActiveMerchant #:nodoc:
 
       def add_address(xml, address, options, shipTo = false)
         xml.tag! shipTo ? 'shipTo' : 'billTo' do
-          xml.tag! 'firstName', address[:first_name]
-          xml.tag! 'lastName', address[:last_name]
-          xml.tag! 'street1', address[:address1]
-          xml.tag! 'street2', address[:address2]
-          xml.tag! 'city', address[:city]
-          xml.tag! 'state', address[:state]
-          xml.tag! 'postalCode', address[:zip]
-          xml.tag! 'country', address[:country]
-          xml.tag! 'email', options[:email] unless options[:email].blank?
-        end 
+          xml.tag! 'firstName',             address[:first_name]
+          xml.tag! 'lastName',              address[:last_name]
+          xml.tag! 'street1',               address[:address1]
+          xml.tag! 'street2',               address[:address2]
+          xml.tag! 'city',                  address[:city]
+          xml.tag! 'state',                 address[:state]
+          xml.tag! 'postalCode',            address[:zip]
+          xml.tag! 'country',               address[:country]
+          xml.tag! 'company',               address[:company]                 unless address[:company].blank?
+          xml.tag! 'companyTaxID',          address[:companyTaxID]            unless address[:company_tax_id].blank?
+          xml.tag! 'phoneNumber',           address[:phone_number]            unless address[:phone_number].blank?
+          xml.tag! 'email',                 options[:email]                   unless options[:email].blank?
+          xml.tag! 'driversLicenseNumber',  options[:drivers_license_number]  unless options[:drivers_license_number].blank?
+          xml.tag! 'driversLicenseState',   options[:drivers_license_state]   unless options[:drivers_license_state].blank?
+        end
       end
 
       def add_creditcard(xml, creditcard)      
@@ -345,6 +370,26 @@ module ActiveMerchant #:nodoc:
           xml.tag!('cvNumber', creditcard.verification_value) unless (@options[:ignore_cvv] || creditcard.verification_value.blank? )
           xml.tag! 'cardType', @@credit_card_codes[card_brand(creditcard).to_sym]
         end
+      end
+
+      def add_check(xml, check)
+        #convert check object account type into cybs account type code
+        if check.account_type == "checking"
+          accountType = check.account_holder_type == "business" ? 'X' : 'C'
+        else
+          accountType = 'S'
+        end
+
+        xml.tag! 'check' do
+          xml.tag! 'accountNumber',      check.account_number
+          xml.tag! 'accountType',        accountType
+          xml.tag! 'bankTransitNumber',  check.routing_number
+          xml.tag! 'checkNumber',        check.number if check.number
+        end
+      end
+
+      def add_check_service(xml)
+        xml.tag! 'ecDebitService', {'run' => 'true'}
       end
 
       def add_tax_service(xml)
@@ -365,7 +410,14 @@ module ActiveMerchant #:nodoc:
         end
       end
 
-      def add_purchase_service(xml, options)
+      def add_purchase_service(xml, source, options)
+        case determine_funding_source(source)
+          when :credit_card   then add_cc_purchase_service(xml, options)
+          when :check         then add_check_service(xml)
+        end
+      end
+
+      def add_cc_purchase_service(xml, options)
         xml.tag! 'ccAuthService', {'run' => 'true'}
         xml.tag! 'ccCaptureService', {'run' => 'true'}
       end
@@ -385,16 +437,22 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_subscription_create_service(xml, options)
-        add_purchase_service(xml, options) if options[:setup_fee]
+        add_cc_purchase_service(xml, options) if options[:setup_fee]
         xml.tag! 'paySubscriptionCreateService', {'run' => 'true'}
       end
 
       def add_subscription_update_service(xml, options)
-        add_purchase_service(xml, options) if options[:setup_fee]
+        add_cc_purchase_service(xml, options) if options[:setup_fee]
         xml.tag! 'paySubscriptionUpdateService', {'run' => 'true'}
       end
 
-      def add_subscription(xml, options)
+      def add_subscription(xml, options, payment_source=nil)
+        if payment_source
+          xml.tag! 'subscription' do
+            xml.tag! 'paymentMethod', determine_funding_source(payment_source).to_s.gsub(/_/, " ")
+          end
+        end
+
         xml.tag! 'recurringSubscriptionInfo' do
           xml.tag! 'subscriptionID',    options[:subscription][:subscription_id]
           xml.tag! 'status',            options[:subscription][:status]                         if options[:subscription][:status]
@@ -436,7 +494,6 @@ module ActiveMerchant #:nodoc:
       # Contact CyberSource, make the SOAP request, and parse the reply into a Response object
       def commit(request, options)
 	      response = parse(ssl_post(test? ? TEST_URL : LIVE_URL, build_request(request, options)))
-        
 	      success = response[:decision] == "ACCEPT"
 	      message = @@response_codes[('r' + response[:reasonCode]).to_sym] rescue response[:message] 
         authorization = success ? [ options[:order_id], response[:requestID], response[:requestToken] ].compact.join(";") : nil
@@ -448,7 +505,7 @@ module ActiveMerchant #:nodoc:
           :cvv_result => response[:cvCode]
         )
       end
-      
+
       # Parse the SOAP response
       # Technique inspired by the Paypal Gateway
       def parse(xml)
@@ -483,6 +540,16 @@ module ActiveMerchant #:nodoc:
         end
         return reply
       end
+
+      def determine_funding_source(source)
+        case
+          when source.is_a?(String) then :subscription
+          when CreditCard.card_companies.keys.include?(card_brand(source)) then :credit_card
+          when card_brand(source) == 'check' then :check
+          else raise ArgumentError, "Unsupported funding source provided"
+        end
+      end
+
     end 
   end 
 end 
