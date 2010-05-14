@@ -223,7 +223,7 @@ class RemoteCyberSourceTest < Test::Unit::TestCase
     assert_success response
     assert response.test?
 
-    assert response = @gateway.update_subscription(response.authorization, {:order_id =>generate_unique_id,:credit_card => @credit_card, :setup_fee => 100})
+    assert response = @gateway.update_subscription(response.params['subscriptionID'], {:order_id =>generate_unique_id,:credit_card => @credit_card, :setup_fee => 100})
     assert_equal 'Successful transaction', response.message
     assert_success response
     assert response.test?
@@ -235,7 +235,7 @@ class RemoteCyberSourceTest < Test::Unit::TestCase
     assert_success response
     assert response.test?
 
-    assert response = @gateway.purchase(@amount, response.authorization, @options.merge(:type => :credit_card))
+    assert response = @gateway.purchase(@amount, response.params['subscriptionID'], @options.merge(:type => :credit_card))
     assert_equal 'Successful transaction', response.message
     assert_success response
     assert response.test?

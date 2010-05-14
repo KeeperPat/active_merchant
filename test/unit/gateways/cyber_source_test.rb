@@ -179,7 +179,7 @@ class CyberSourceTest < Test::Unit::TestCase
     assert response = @gateway.create_subscription(@credit_card, @subscription_options)
     assert response.success?
     assert response.test?
-    assert response = @gateway.update_subscription(response.authorization, @subscription_options.merge(:credit_card => @credit_card))
+    assert response = @gateway.update_subscription(response.params['subscriptionID'], @subscription_options.merge(:credit_card => @credit_card))
     assert response.success?
     assert response.test?
   end
@@ -189,7 +189,7 @@ class CyberSourceTest < Test::Unit::TestCase
     assert response = @gateway.create_subscription(@credit_card, @subscription_options)
     assert response.success?
     assert response.test?
-    assert response = @gateway.purchase(@amount, response.authorization, @options.merge(:type => :credit_card))
+    assert response = @gateway.purchase(@amount, response.params['subscriptionID'], @options.merge(:type => :credit_card))
     assert response.success?
     assert response.test?
   end
@@ -199,7 +199,7 @@ class CyberSourceTest < Test::Unit::TestCase
     assert response = @gateway.create_subscription(@check, @subscription_options)
     assert response.success?
     assert response.test?
-    assert response = @gateway.purchase(@amount, response.authorization, @options.merge(:type => :check))
+    assert response = @gateway.purchase(@amount, response.params['subscriptionID'], @options.merge(:type => :check))
     assert response.success?
     assert response.test?
   end

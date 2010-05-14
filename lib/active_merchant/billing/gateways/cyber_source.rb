@@ -117,15 +117,15 @@ module ActiveMerchant #:nodoc:
       end
 
       # Purchase is an auth followed by a capture
-      # You must supply an order_id in the options hash  
-      def purchase(money, payment_source, options = {})
+      # You must supply an order_id in the options hash
+      def purchase(money, payment_source_or_subscription_id, options = {})
         requires!(options, :order_id, :email)
         setup_address_hash(options)
-        if payment_source.is_a?(String)
+        if payment_source_or_subscription_id.is_a?(String)
           requires!(options, [:type, :credit_card, :check])
-          commit(build_subscription_purchase_request(money, payment_source, options), options)
+          commit(build_subscription_purchase_request(money, payment_source_or_subscription_id, options), options)
         else
-          commit(build_purchase_request(money, payment_source, options), options)
+          commit(build_purchase_request(money, payment_source_or_subscription_id, options), options)
         end
       end
       
@@ -145,10 +145,10 @@ module ActiveMerchant #:nodoc:
         commit(build_create_subscription_request(payment_source, options), options)
       end
 
-      def update_subscription(identification, options = {})
+      def update_subscription(subscription_id, options = {})
         requires!(options, :order_id)
         setup_address_hash(options)
-        commit(build_update_subscription_request(identification, options), options)
+        commit(build_update_subscription_request(subscription_id, options), options)
       end
 
       # CyberSource requires that you provide line item information for tax calculations
@@ -267,8 +267,7 @@ module ActiveMerchant #:nodoc:
         xml.target!
       end
 
-      def build_update_subscription_request(identification, options)
-        reference_code, subscription_id, request_token = identification.split(";")
+      def build_update_subscription_request(subscription_id, options)
         options[:subscription] ||= {}
         options[:subscription][:subscription_id] = subscription_id
 
@@ -282,8 +281,7 @@ module ActiveMerchant #:nodoc:
         xml.target!
       end
 
-      def build_subscription_purchase_request(money, identification, options)
-        reference_code, subscription_id, request_token = identification.split(";")
+      def build_subscription_purchase_request(money, subscription_id, options)
         options[:subscription] ||= {}
         options[:subscription][:subscription_id] = subscription_id
 
