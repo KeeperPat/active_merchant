@@ -198,6 +198,18 @@ class RemoteCyberSourceTest < Test::Unit::TestCase
     assert response.test?
   end
 
+  def test_successful_create_on_demand_profile_with_cc
+    assert response = @gateway.create_subscription(@credit_card, @subscription_options.merge(
+      :subscription => {
+        :frequency => "on-demand"
+      }
+    ))
+    assert_equal 'Successful transaction', response.message
+    assert_success response
+    # assert_match /\d{26}/, response.params['subscriptionID'] # subscriptionID should be 26 characters but is coming back from the test environment as 22.
+    assert response.test?
+  end
+
   def test_successful_create_subscription_with_echeck
     assert response = @gateway.create_subscription(@check, @check_subscription_options)
     assert_equal 'Successful transaction', response.message
