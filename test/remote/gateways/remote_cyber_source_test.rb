@@ -252,4 +252,16 @@ class RemoteCyberSourceTest < Test::Unit::TestCase
     assert_success response
     assert response.test?
   end
+
+  def test_successful_authorization_with_cc_subscription
+    assert response = @gateway.create_subscription(@credit_card, @subscription_options)
+    assert_equal 'Successful transaction', response.message
+    assert_success response
+    assert response.test?
+
+    assert response = @gateway.authorize(@amount, response.params['subscriptionID'], @options.merge(:type => :credit_card))
+    assert_equal 'Successful transaction', response.message
+    assert_success response
+    assert response.test?
+  end
 end

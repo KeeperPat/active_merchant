@@ -104,10 +104,15 @@ module ActiveMerchant #:nodoc:
       # Request an authorization for an amount from CyberSource 
       #
       # You must supply an :order_id in the options hash 
-      def authorize(money, creditcard, options = {})
-        requires!(options,  :order_id, :email)
+      def authorize(money, creditcard_or_subscription_id, options = {})
+        requires!(options, :order_id, :email)
         setup_address_hash(options)
-        commit(build_auth_request(money, creditcard, options), options )
+        if creditcard_or_subscription_id.is_a?(String)
+          requires!(options, [:type, :credit_card])
+          commit(build_subscription_authorize_request(money, creditcard_or_subscription_id, options), options)
+        else
+          commit(build_auth_request(money, creditcard_or_subscription_id, options), options )
+        end
       end
 
       # Capture an authorization that has previously been requested
@@ -277,6 +282,18 @@ module ActiveMerchant #:nodoc:
         add_creditcard(xml, options[:credit_card]) if options[:credit_card]
         add_subscription(xml, options)
         add_subscription_update_service(xml, options)
+        add_business_rules_data(xml)
+        xml.target!
+      end
+
+      def build_subscription_authorize_request(money, subscription_id, options)
+        options[:subscription] ||= {}
+        options[:subscription][:subscription_id] = subscription_id
+
+        xml = Builder::XmlMarkup.new :indent => 2
+        add_purchase_data(xml, money, true, options)
+        add_subscription(xml, options)
+        add_auth_service(xml)
         add_business_rules_data(xml)
         xml.target!
       end

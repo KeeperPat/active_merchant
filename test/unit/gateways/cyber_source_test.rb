@@ -204,6 +204,16 @@ class CyberSourceTest < Test::Unit::TestCase
     assert response.test?
   end
 
+  def test_successful_authorize_request_with_cc_subscription
+    @gateway.stubs(:ssl_post).returns(successful_create_subscription_response, successful_subscription_authorize_response)
+    assert response = @gateway.create_subscription(@credit_card, @subscription_options)
+    assert response.success?
+    assert response.test?
+    assert response = @gateway.authorize(@amount, response.params['subscriptionID'], @options.merge(:type => :credit_card))
+    assert response.success?
+    assert response.test?
+  end
+
   private
 
   def successful_purchase_response
@@ -277,4 +287,11 @@ class CyberSourceTest < Test::Unit::TestCase
     XML
   end
 
+  def successful_subscription_authorize_response
+    <<-XML
+    <?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+    <soap:Header>
+    <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"><wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="Timestamp-32531034"><wsu:Created>2010-05-14T21:10:40.013Z</wsu:Created></wsu:Timestamp></wsse:Security></soap:Header><soap:Body><c:replyMessage xmlns:c="urn:schemas-cybersource-com:transaction-data-1.32"><c:merchantReferenceCode>c2abf8e9ad9720cfdfcbdf65612984c6</c:merchantReferenceCode><c:requestID>2738714397450008402433</c:requestID><c:decision>ACCEPT</c:decision><c:reasonCode>100</c:reasonCode><c:requestToken>Ahj77wSRKO6YNEzPdDQCJJspmPj7cBTZTMfH2+kB8gENDJpJlXR6S1gcCciUd0waJme6GgEA5EgK</c:requestToken><c:purchaseTotals><c:currency>USD</c:currency></c:purchaseTotals><c:ccAuthReply><c:reasonCode>100</c:reasonCode><c:amount>1.00</c:amount><c:authorizationCode>1</c:authorizationCode><c:avsCode>1</c:avsCode><c:authorizedDateTime>2010-05-14T21:10:39Z</c:authorizedDateTime><c:processorResponse>0</c:processorResponse></c:ccAuthReply></c:replyMessage></soap:Body></soap:Envelope>
+    XML
+  end
 end
