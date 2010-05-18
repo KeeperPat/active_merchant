@@ -63,8 +63,9 @@ module ActiveMerchant #:nodoc:
 
       CIM_VALIDATION_MODES = {
         :none => 'none',
-        :test => 'testMode',
-        :live => 'liveMode'
+        :test => 'testMode', # Free test-mode transaction. No validation against live cardholder account.
+        :live => 'liveMode', # Validate against live cardholder account for 0.00 if available, 0.01 otherwise.
+        :old_live => 'oldLiveMode' # Validate against live cardholder account for 0.01 even if 0.00 option is available. NOT RECOMMENDED. Use of this option can result in fines from your processor.
       }
       
       BANK_ACCOUNT_TYPES = {
@@ -382,8 +383,13 @@ module ActiveMerchant #:nodoc:
       # * <tt>:customer_profile_id</tt> -- The Customer Profile ID of the customer to use in this transaction. (REQUIRED)
       # * <tt>:customer_payment_profile_id</tt> -- The Customer Payment Profile ID of the Customer Payment Profile to be verified. (REQUIRED)
       # * <tt>:customer_address_id</tt> -- The Customer Address ID of the Customer Shipping Address to be verified.
-      # * <tt>:validation_mode</tt> -- <tt>:live</tt> or <tt>:test</tt> In Test Mode, only field validation is performed. 
-      #   In Live Mode, a transaction is generated and submitted to the processor with the amount of $0.01. If successful, the transaction is immediately voided. (REQUIRED)
+      # * <tt>:validation_mode</tt> -- <tt>none</tt>, <tt>:test</tt>, <tt>:live</tt> or <tt>:old_live</tt>
+      #   In None Mode, no validation is performed.
+      #   In Test Mode, only field validation is performed.
+      #   In Live Mode, a transaction is generated against the live cardholder account for 0.00 if available, 0.01 otherwise. If successful,
+      #   the transaction is immediately voided.
+      #   In Old Live Mode, a transaction for 0.01 is generated against the live cardholder account even if 0.00 option is available. THIS IS
+      #   NOT RECOMMENDED. Use of this option can result in fines from your processor. (REQUIRED)
       def validate_customer_payment_profile(options)
         requires!(options, :customer_profile_id, :customer_payment_profile_id, :validation_mode)
 

@@ -85,7 +85,7 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
     assert_instance_of Response, response
     assert_success response
     assert_equal @customer_payment_profile_id, response.params['customer_payment_profile_id']
-    assert_equal "This output is only present if the ValidationMode input parameter is passed with a value of testMode or liveMode", response.params['validation_direct_response']
+    assert_equal "This output is only present if the ValidationMode input parameter is passed with a value of testMode, liveMode or oldLiveMode", response.params['validation_direct_response']
   end
 
   def test_should_create_customer_shipping_address_request
@@ -551,7 +551,7 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
           </message> 
         </messages> 
         <customerPaymentProfileId>#{@customer_payment_profile_id}</customerPaymentProfileId>
-        <validationDirectResponse>This output is only present if the ValidationMode input parameter is passed with a value of testMode or liveMode</validationDirectResponse>
+        <validationDirectResponse>This output is only present if the ValidationMode input parameter is passed with a value of testMode, liveMode or oldLiveMode</validationDirectResponse>
       </createCustomerPaymentProfileResponse>
     XML
   end
