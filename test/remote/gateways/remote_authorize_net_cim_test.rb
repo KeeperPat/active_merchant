@@ -458,13 +458,13 @@ class AuthorizeNetCimTest < Test::Unit::TestCase
       :customer_profile_id => @customer_profile_id,
       :customer_payment_profile_id => @customer_payment_profile_id,
       :customer_address_id => @customer_address_id,
-      :validation_mode => :live
+      :validation_mode => :test
     )
 
     assert response.test?
     assert_success response
     assert_nil response.authorization
-    assert_equal "This transaction has been approved.", response.params['direct_response']['message']
+    assert_equal "(TESTMODE) This transaction has been approved.", response.params['direct_response']['message']
   end
 
   def test_should_create_customer_profile_transaction_auth_capture_and_then_void_request
